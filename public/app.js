@@ -3,6 +3,8 @@ const socket = io();
 const $ = id => document.getElementById(id);
 let roomState = null;
 let lastEvent = null;
+let heldTrick = null;
+let heldTrickTimer = null;
 
 const settings = {
   sound: JSON.parse(localStorage.getItem("lorum-settings") || "{}").sound ?? true,
@@ -56,7 +58,25 @@ socket.on("room-state", state => {
   if (state.phase === "lobby") { show("room"); renderRoom(); }
   else { show("game"); renderGame(); maybeShowContractModal(); }
 });
-socket.on("game-event", event => { lastEvent = event; if (settings.sound) cardSound(); setTimeout(animateEvent, 30); });
+socket.on("game-event", event => {
+  lastEvent = event;
+  if (settings.sound) cardSound();
+
+  if (event.event === "trick-complete" && event.completedTrick) {
+    heldTrick = event.completedTrick;
+    clearTimeout(heldTrickTimer);
+    renderGame();
+    setTimeout(animateEvent, 30);
+
+    heldTrickTimer = setTimeout(() => {
+      heldTrick = null;
+      renderGame();
+    }, 800);
+    return;
+  }
+
+  setTimeout(animateEvent, 30);
+});
 
 function renderRoom(){
   $("roomCode").textContent = roomState.roomCode;
@@ -94,7 +114,7 @@ function renderGame(){
 
   const legal = new Set(roomState.legalCardIds);
   $("hand").className = `hand ${settings.handLayout==="grid"?"grid":""}`;
-  $("hand").innerHTML = roomState.hand.map(card => cardHtml(card, legal.has(card.id) && roomState.currentPlayer===roomState.playerIndex && roomState.phase==="playing")).join("");
+  $("hand").innerHTML = roomState.hand.map(card => cardHtml(card, legal.has(card.id) && roomState.currentPlayer===roomState.playerIndex && roomState.phase==="playing" && !heldTrick)).join("");
   document.querySelectorAll("#hand .card").forEach(el => el.onclick = () => {
     if (!el.classList.contains("disabled")) socket.emit("play-card", { cardId: el.dataset.id }, showError);
   });
@@ -102,7 +122,8 @@ function renderGame(){
   const isSeq = c?.id === "sequence";
   $("trick").style.display = isSeq ? "none" : "block";
   $("sequence").classList.toggle("active", isSeq);
-  $("trick").innerHTML = roomState.trick.map(entry => {
+  const visibleTrick = heldTrick || roomState.trick;
+  $("trick").innerHTML = visibleTrick.map(entry => {
     const rel = (entry.player - roomState.playerIndex + 4) % 4;
     return cardHtml(entry.card, false, `played p${rel}`);
   }).join("");
@@ -115,6 +136,7 @@ function renderGame(){
 }
 
 function statusText(){
+  if (heldTrick && lastEvent?.winner !== undefined) return `Štih osvaja ${roomState.names[lastEvent.winner]}.`;
   if (roomState.phase === "game-over") return `Partija završena. Pobjednik: ${roomState.winner.map(i=>roomState.names[i]).join(", ")}`;
   if (roomState.phase === "round-over") return "Miniigra završena.";
   if (roomState.phase === "contract") return `${roomState.names[roomState.dealer]} bira miniigru.`;
@@ -122,7 +144,14 @@ function statusText(){
 }
 
 function cardHtml(card, enabled, extra=""){
-  return `<div class="card ${card.red?"red":""} ${enabled?"":"disabled"} ${extra}" data-id="${card.id}"><div class="corner">${card.label}<br>${card.suitSymbol}</div><div class="pip">${card.suitSymbol}</div></div>`;
+  return `<div class="card ${card.red?"red":""} ${enabled?"":"disabled"} ${extra}" data-id="${card.id}">
+    <div class="realistic-face">
+      <div class="corner">${card.label}<br>${card.suitSymbol}</div>
+      <div class="pip">${card.suitSymbol}</div>
+      <div class="corner corner-bottom">${card.label}<br>${card.suitSymbol}</div>
+    </div>
+    <div class="compact-face">${card.label}${card.suitSymbol}</div>
+  </div>`;
 }
 
 function renderSequence(){
