@@ -288,6 +288,13 @@ function scheduleBotAction(room) {
 
   if (room.game.phase !== "playing") return;
 
+  const remainingLock = (room.lockedUntil || 0) - Date.now();
+  if (remainingLock > 0) {
+    const timer = setTimeout(() => scheduleBotAction(room), remainingLock + 20);
+    botTimers.set(room.code, timer);
+    return;
+  }
+
   const playerIndex = room.game.currentPlayer;
   if (!room.players[playerIndex]?.isBot) return;
 
@@ -303,10 +310,17 @@ function scheduleBotAction(room) {
 
     try {
       const event = playCard(room.game, playerIndex, card.id);
+
+      if (event.event === "trick-complete") {
+        room.lockedUntil = Date.now() + 800;
+      }
+
       broadcastRoom(room, event);
 
       if (room.game.phase === "round-intro") {
         scheduleIntro(room);
+      } else if (event.event === "trick-complete") {
+        setTimeout(() => scheduleBotAction(room), 820);
       } else {
         scheduleBotAction(room);
       }
@@ -334,7 +348,8 @@ io.on("connection", socket => {
         }],
         hostSessionId:id,
         selectionMode:normalizeMode(selectionMode),
-        game:null
+        game:null,
+        lockedUntil:0
       };
 
       rooms.set(code, room);
@@ -528,6 +543,9 @@ io.on("connection", socket => {
       const room = session && rooms.get(session.roomCode);
 
       if (!room?.game) throw new Error("Partija nije pokrenuta.");
+      if (Date.now() < (room.lockedUntil || 0)) {
+        throw new Error("Pričekaj da se završi prikaz štiha.");
+      }
 
       const playerIndex = room.players.findIndex(player =>
         player.sessionId === session.sessionId
@@ -536,11 +554,21 @@ io.on("connection", socket => {
       if (room.players[playerIndex]?.isBot) throw new Error("AI poteze kontrolira server.");
 
       const event = playCard(room.game, playerIndex, cardId);
+
+      if (event.event === "trick-complete") {
+        room.lockedUntil = Date.now() + 800;
+      }
+
       callback?.({ ok:true });
       broadcastRoom(room, event);
 
-      if (room.game.phase === "round-intro") scheduleIntro(room);
-      else scheduleBotAction(room);
+      if (room.game.phase === "round-intro") {
+        scheduleIntro(room);
+      } else if (event.event === "trick-complete") {
+        setTimeout(() => scheduleBotAction(room), 820);
+      } else {
+        scheduleBotAction(room);
+      }
     } catch (error) {
       callback?.({ ok:false, error:error.message });
     }

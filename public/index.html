@@ -1,10 +1,150 @@
+<!doctype html>
+<html lang="hr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Lorum Club</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body data-theme="dark" data-card-style="realistic">
+  <main>
+    <section id="home" class="screen active">
+      <div class="menu">
+        <div class="logo-card">L</div>
+        <div class="eyebrow">PRIVATNI KARTAŠKI STOL</div>
+        <h1>LORUM CLUB</h1>
+        <p>Online Lorum za četiri igrača.</p>
+        <button class="primary" data-go="lobby">PLAY</button>
+        <button class="ghost" data-go="settings">Postavke</button>
+      </div>
+    </section>
 
-<!-- U public/index.html, unutar #room, ispod #playerSlots dodaj: -->
+    <section id="settings" class="screen">
+      <div class="panel-page">
+        <button class="back" data-go="home">← Natrag</button>
+        <h2>Postavke</h2>
+        <label class="row"><span>Zvuk karata</span><input id="sound" type="checkbox"></label>
+        <label class="row"><span>Specijalni efekti</span><input id="effects" type="checkbox"></label>
+        <div class="group"><span>Tema</span><div class="seg"><button data-setting="theme" data-value="dark">Dark</button><button data-setting="theme" data-value="light">Light</button></div></div>
+        <div class="group"><span>Karte</span><div class="seg"><button data-setting="cardStyle" data-value="realistic">Realistične</button><button data-setting="cardStyle" data-value="large">Veliki znakovi</button></div></div>
+        <div class="group"><span>Ruka</span><div class="seg"><button data-setting="handLayout" data-value="fan">8 u nizu</button><button data-setting="handLayout" data-value="grid">2 × 4</button></div></div>
+      </div>
+    </section>
 
-<button id="addBotBtn" class="secondary hidden">
-  + DODAJ AI IGRAČA
-</button>
+    <section id="lobby" class="screen">
+      <div class="panel-page">
+        <button class="back" data-go="home">← Natrag</button>
+        <h2>Online stol</h2>
 
-<p class="bot-note">
-  AI težina: Medium
-</p>
+        <div id="rejoinWrap" class="rejoin hidden">
+          <strong id="rejoinText">Vrati se u prethodnu sobu</strong>
+          <button id="rejoinBtn" class="secondary">BRZI POVRATAK</button>
+        </div>
+
+        <label>Ime</label>
+        <input id="nameInput" value="Andrej" maxlength="18">
+
+        <label>Kod sobe</label>
+        <input id="codeInput" maxlength="5" placeholder="K7PX4">
+        <button id="joinBtn" class="primary">JOIN ROOM</button>
+
+        <div class="or">ili</div>
+
+        <label>Način odabira miniigara</label>
+        <select id="createMode">
+          <option value="ordered">Redoslijedom</option>
+          <option value="random">Nasumično</option>
+          <option value="manual">Djelitelj bira</option>
+        </select>
+
+        <button id="createBtn" class="secondary">CREATE ROOM</button>
+        <p id="lobbyError" class="error"></p>
+      </div>
+    </section>
+
+    <section id="room" class="screen">
+      <div class="room-wrap">
+        <div class="room-head">
+          <button class="back" data-go="home">← Izlaz</button>
+          <div><div class="eyebrow">SOBA</div><h2 id="roomCode">-----</h2></div>
+        </div>
+
+        <div id="playerSlots" class="slots"></div>
+
+        <button id="addBotBtn" class="secondary hidden">+ DODAJ AI IGRAČA</button>
+        <p class="bot-note">AI težina: Medium</p>
+
+        <div id="roomModeSettings" class="room-mode hidden">
+          <div class="eyebrow">NAČIN IGRE</div>
+          <div class="mode-buttons">
+            <button data-mode="ordered">Redoslijedom</button>
+            <button data-mode="random">Nasumično</button>
+            <button data-mode="manual">Djelitelj bira</button>
+          </div>
+        </div>
+
+        <p>Odabrano: <strong id="lockedMode">Redoslijedom</strong></p>
+        <button id="startBtn" class="primary">START GAME</button>
+        <p id="roomHint">Čekanje igrača…</p>
+      </div>
+    </section>
+
+    <section id="game" class="screen">
+      <header class="topbar">
+        <strong>LORUM CLUB</strong>
+        <span id="meta"></span>
+        <button id="openSettings">⚙</button>
+      </header>
+
+      <div class="layout">
+        <aside>
+          <div class="box"><div class="eyebrow">IGRA</div><h3 id="contractName">—</h3><p id="contractDesc"></p></div>
+          <div class="box"><div class="eyebrow">BODOVI</div><div id="scores"></div></div>
+          <div class="box log"><div class="eyebrow">STOL</div><div id="log"></div></div>
+        </aside>
+
+        <div class="table-wrap">
+          <div class="table">
+            <div class="seat top" data-seat="2"></div>
+            <div class="seat left" data-seat="1"></div>
+            <div class="seat right" data-seat="3"></div>
+            <div class="seat bottom" data-seat="0"></div>
+            <div id="trick" class="trick"></div>
+            <div id="sequence" class="sequence"></div>
+          </div>
+
+          <div id="hand" class="hand"></div>
+          <div id="status"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="contractModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Odaberi miniigru</h2>
+      <div id="contractChoices" class="choices"></div>
+    </div>
+  </div>
+
+  <div id="roundIntro" class="round-intro hidden">
+    <div class="round-intro-card">
+      <div id="introKicker" class="eyebrow">SLJEDEĆA IGRA</div>
+      <h2 id="introTitle">Minimum</h2>
+      <p id="introDescription"></p>
+      <small id="introDealer"></small>
+    </div>
+  </div>
+
+  <div id="settingsModal" class="modal hidden">
+    <div class="modal-card">
+      <button id="closeSettings">×</button>
+      <h2>Postavke</h2>
+      <p>Postavke se mijenjaju na početnom ekranu.</p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
