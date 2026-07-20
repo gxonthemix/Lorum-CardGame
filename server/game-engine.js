@@ -18,10 +18,19 @@ export const CONTRACTS = [
   { id:"maximum", name:"Maximum", description:"Svaki osvojeni štih donosi -1 bod." },
   { id:"hearts", name:"Srca", description:"Svako osvojeno srce donosi 1 kazneni bod." },
   { id:"queens", name:"Dame", description:"Svaka osvojena dama donosi 2 kaznena boda." },
-  { id:"king-last", name:"Kralj srca i zadnji štih", description:"Kralj srca donosi 4 boda, zadnji štih još 4." },
+  { id:"king-last", name:"Kralj srca i zadnji štih", description:"Kralj srca donosi 4 boda, a zadnji štih još 4." },
   { id:"jack-clubs", name:"Dečko tref", description:"Dečko tref donosi 8 kaznenih bodova." },
   { id:"sequence", name:"NIZ", description:"Prva karta određuje početni rang svih nizova." }
 ];
+
+export function shuffle(items) {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 export function createDeck() {
   return SUITS.flatMap(suit => RANKS.map(rank => ({
@@ -35,28 +44,24 @@ export function createDeck() {
   })));
 }
 
-export function shuffle(items) {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
-
-export function createInitialGame(playerIds) {
+export function createInitialGame(playerIds, selectionMode = "ordered") {
+  const randomSchedules = Array.from({ length: 4 }, () => shuffle([0,1,2,3,4,5,6]));
   return {
-    phase: "contract",
+    phase: selectionMode === "manual" ? "contract" : "round-intro",
+    selectionMode,
     dealer: 0,
     cycle: 0,
+    roundInCycle: 0,
     usedContracts: Array.from({ length: 4 }, () => []),
-    hands: [[], [], [], []],
+    randomSchedules,
+    hands: [[],[],[],[]],
     currentPlayer: 1,
     trickLeader: 1,
     trick: [],
     trickNumber: 1,
     scores: [0,0,0,0],
     contractIndex: null,
+    pendingContractIndex: selectionMode === "ordered" ? 0 : selectionMode === "random" ? randomSchedules[0][0] : null,
     sequenceStart: null,
     sequences: {},
     winner: null,
@@ -73,13 +78,42 @@ function sortHand(hand) {
   });
 }
 
-export function startContract(game, contractIndex) {
-  if (game.phase !== "contract") throw new Error("Miniigra se trenutno ne može odabrati.");
-  if (game.usedContracts[game.dealer].includes(contractIndex)) throw new Error("Ta je miniigra već odigrana.");
+export function getNextAutomaticContract(game) {
+  if (game.selectionMode === "ordered") return game.roundInCycle;
+  if (game.selectionMode === "random") return game.randomSchedules[game.dealer][game.roundInCycle];
+  return null;
+}
+
+export function prepareRoundIntro(game) {
+  const next = getNextAutomaticContract(game);
+  if (next === null) {
+    game.phase = "contract";
+    game.pendingContractIndex = null;
+  } else {
+    game.phase = "round-intro";
+    game.pendingContractIndex = next;
+  }
+  game.contractIndex = null;
+  game.trick = [];
+  game.sequenceStart = null;
+  game.sequences = {};
+}
+
+export function startPendingContract(game) {
+  if (game.phase !== "round-intro") throw new Error("Najava miniigre nije aktivna.");
+  if (game.pendingContractIndex === null) throw new Error("Nema pripremljene miniigre.");
+  startContract(game, game.pendingContractIndex, true);
+}
+
+export function startContract(game, contractIndex, fromIntro = false) {
+  const allowedPhase = fromIntro ? "round-intro" : "contract";
+  if (game.phase !== allowedPhase) throw new Error("Miniigra se trenutno ne može pokrenuti.");
   if (!CONTRACTS[contractIndex]) throw new Error("Nepoznata miniigra.");
+  if (game.usedContracts[game.dealer].includes(contractIndex)) throw new Error("Ta je miniigra već odigrana.");
 
   game.usedContracts[game.dealer].push(contractIndex);
   game.contractIndex = contractIndex;
+  game.pendingContractIndex = null;
   game.phase = "playing";
   game.trick = [];
   game.trickNumber = 1;
@@ -93,7 +127,7 @@ export function startContract(game, contractIndex) {
 
   game.trickLeader = (game.dealer + 1) % 4;
   game.currentPlayer = game.trickLeader;
-  game.log.unshift(`Odabrana igra: ${CONTRACTS[contractIndex].name}.`);
+  game.log.unshift(`Počinje: ${CONTRACTS[contractIndex].name}.`);
 }
 
 export function isSequence(game) {
@@ -152,26 +186,33 @@ function scoreTrick(game, winner) {
   return { points, special };
 }
 
+function finishRound(game) {
+  game.roundInCycle += 1;
+
+  if (game.roundInCycle === 7) {
+    if (game.dealer === 3) {
+      game.phase = "game-over";
+      const minimum = Math.min(...game.scores);
+      game.winner = game.scores
+        .map((score, index) => score === minimum ? index : -1)
+        .filter(index => index >= 0);
+      return;
+    }
+
+    game.dealer += 1;
+    game.cycle += 1;
+    game.roundInCycle = 0;
+  }
+
+  prepareRoundIntro(game);
+}
+
 function advanceSequenceTurn(game) {
   let checked = 0;
   do {
     game.currentPlayer = (game.currentPlayer + 1) % 4;
-    checked++;
+    checked += 1;
   } while (checked < 4 && legalCards(game, game.currentPlayer).length === 0);
-}
-
-function finishRound(game) {
-  game.phase = "round-over";
-  if (game.usedContracts[game.dealer].length === 7) {
-    if (game.dealer === 3) {
-      game.phase = "game-over";
-      const min = Math.min(...game.scores);
-      game.winner = game.scores.map((score, index) => score === min ? index : -1).filter(index => index >= 0);
-    } else {
-      game.dealer += 1;
-      game.cycle += 1;
-    }
-  }
 }
 
 export function playCard(game, playerIndex, cardId) {
@@ -182,14 +223,15 @@ export function playCard(game, playerIndex, cardId) {
   const cardIndex = hand.findIndex(card => card.id === cardId);
   if (cardIndex < 0) throw new Error("Nemaš tu kartu.");
 
-  const legal = new Set(legalCards(game, playerIndex).map(card => card.id));
-  if (!legal.has(cardId)) throw new Error("Ta karta nije dopuštena.");
+  const allowed = new Set(legalCards(game, playerIndex).map(card => card.id));
+  if (!allowed.has(cardId)) throw new Error("Ta karta nije dopuštena.");
 
   const [card] = hand.splice(cardIndex, 1);
   game.log.unshift(`Igrač ${playerIndex + 1} igra ${card.label}${card.suitSymbol}.`);
 
   if (isSequence(game)) {
     if (game.sequenceStart === null) game.sequenceStart = card.value;
+
     const seq = game.sequences[card.suit];
     if (!seq) game.sequences[card.suit] = { low: card.value, high: card.value };
     else {
@@ -204,33 +246,37 @@ export function playCard(game, playerIndex, cardId) {
       });
       game.log.unshift(`Igrač ${playerIndex + 1} je prvi završio NIZ.`);
       finishRound(game);
-      return { card, event: "sequence-win", playerIndex };
+      return { card, event:"sequence-win", playerIndex };
     }
 
     advanceSequenceTurn(game);
-    return { card, event: "sequence-card", playerIndex };
+    return { card, event:"sequence-card", playerIndex };
   }
 
   game.trick.push({ player: playerIndex, card });
 
   if (game.trick.length < 4) {
     game.currentPlayer = (game.currentPlayer + 1) % 4;
-    return { card, event: "card-played", playerIndex };
+    return { card, event:"card-played", playerIndex };
   }
 
+  const completedTrick = game.trick.map(entry => ({ ...entry }));
   const leadSuit = game.trick[0].card.suit;
   let winnerEntry = game.trick[0];
+
   for (const entry of game.trick.slice(1)) {
-    if (entry.card.suit === leadSuit && entry.card.value > winnerEntry.card.value) winnerEntry = entry;
+    if (entry.card.suit === leadSuit && entry.card.value > winnerEntry.card.value) {
+      winnerEntry = entry;
+    }
   }
 
   const winner = winnerEntry.player;
   const scored = scoreTrick(game, winner);
-  const completedTrick = game.trick.map(entry => ({...entry}));
-  game.log.unshift(`Igrač ${winner + 1} osvaja ${game.trickNumber}. štih.`);
+  const completedNumber = game.trickNumber;
+  game.log.unshift(`Igrač ${winner + 1} osvaja ${completedNumber}. štih.`);
   game.trick = [];
 
-  if (game.hands.every(handItem => handItem.length === 0)) {
+  if (game.hands.every(item => item.length === 0)) {
     finishRound(game);
   } else {
     game.trickNumber += 1;
@@ -240,33 +286,26 @@ export function playCard(game, playerIndex, cardId) {
 
   return {
     card,
-    event: "trick-complete",
+    event:"trick-complete",
     playerIndex,
     winner,
     scored,
     completedTrick,
-    trickNumber: game.trickNumber === 1 ? 8 : game.trickNumber - 1
+    trickNumber: completedNumber
   };
 }
 
-export function nextRound(game) {
-  if (game.phase !== "round-over") throw new Error("Runda još nije završena.");
-  game.phase = "contract";
-  game.contractIndex = null;
-  game.trick = [];
-  game.sequenceStart = null;
-  game.sequences = {};
-}
-
-export function publicState(game, playerIndex, names, roomCode, hostId) {
+export function publicState(game, playerIndex, names, roomCode, hostId, selectionMode) {
   return {
     roomCode,
     names,
     hostId,
+    selectionMode,
     playerIndex,
     phase: game.phase,
     dealer: game.dealer,
     cycle: game.cycle,
+    roundInCycle: game.roundInCycle,
     usedContracts: game.usedContracts,
     hand: game.hands[playerIndex] || [],
     handCounts: game.hands.map(hand => hand.length),
@@ -275,11 +314,14 @@ export function publicState(game, playerIndex, names, roomCode, hostId) {
     trickNumber: game.trickNumber,
     scores: game.scores,
     contractIndex: game.contractIndex,
+    pendingContractIndex: game.pendingContractIndex,
     contracts: CONTRACTS,
     sequenceStart: game.sequenceStart,
     sequences: game.sequences,
     winner: game.winner,
-    log: game.log.slice(0, 15),
-    legalCardIds: game.phase === "playing" ? legalCards(game, playerIndex).map(card => card.id) : []
+    log: game.log.slice(0,15),
+    legalCardIds: game.phase === "playing"
+      ? legalCards(game, playerIndex).map(card => card.id)
+      : []
   };
 }
