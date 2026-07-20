@@ -29,8 +29,13 @@ $("sound").onchange = e => { settings.sound = e.target.checked; persist(); };
 $("effects").onchange = e => { settings.effects = e.target.checked; persist(); };
 document.querySelectorAll("[data-setting]").forEach(btn => btn.onclick = () => { settings[btn.dataset.setting] = btn.dataset.value; persist(); renderGame(); });
 
-function sessionId(){ return localStorage.getItem("lorum-session") || ""; }
-function saveSession(id){ localStorage.setItem("lorum-session", id); }
+function sessionId() {
+  return sessionStorage.getItem("lorum-session") || "";
+}
+
+function saveSession(id) {
+  sessionStorage.setItem("lorum-session", id);
+}
 
 $("createBtn").onclick = () => socket.emit("create-room", { name: $("nameInput").value, sessionId: sessionId() }, response => {
   if (!response.ok) return $("lobbyError").textContent = response.error;
