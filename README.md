@@ -1,55 +1,77 @@
-# Lorum Club Online
+# Lorum Club
 
-Potpuna multiplayer MVP verzija Loruma za 4 igrača.
+Lorum Club is a browser-based multiplayer adaptation of the traditional four-player card game Lorum.
 
-## Funkcionalnosti
-- Kreiranje sobe i ulazak kodom
-- Točno 4 igrača
-- Socket.IO real-time sinkronizacija
-- Autoritativni server: server provjerava poteze i čuva skrivene karte
-- Reconnect preko lokalno spremljenog session ID-a
-- 7 miniigara
-- Dealer ostaje isti svih 7 miniigara
-- Prvi igra igrač nakon dealera
-- NIZ s početnim rangom koji određuje prvi igrač
-- Dark/light tema
-- 8 u nizu ili 2×4 raspored ruke
-- Isključivi efekti na posebnim kartama/događajima
-- Responsive prikaz za mobitel
+The application allows players to create a private room, join using a room code, and play a complete match in real time from desktop or mobile devices.
 
-## Lokalno pokretanje
+## Gameplay
 
-Trebaš Node.js 20 ili noviji.
+A match is played by four players using a 32-card deck.
+
+Each player acts as the dealer for seven consecutive rounds. During those rounds, the player seated after the dealer plays first. After all seven game modes have been completed, the dealer position moves to the next player.
+
+The game currently includes:
+
+* Minimum
+* Maximum
+* Hearts
+* Queens
+* King of Hearts and the Last Trick
+* Jack of Clubs
+* Sequence
+
+In Sequence, the first card played determines the starting rank for all four suits. Each suit is then built upward or downward from that rank, with players placing one card per turn.
+
+## Online Multiplayer
+
+Players can:
+
+* create private rooms
+* join using a room code
+* play with four separate devices
+* reconnect after refreshing the page
+* continue an active match in real time
+
+All game rules are validated by the server. Players only receive their own hand, while opponents’ cards remain hidden.
+
+## Technology
+
+* JavaScript
+* Node.js
+* Express
+* Socket.IO
+* HTML
+* CSS
+
+## Running Locally
+
+Node.js 20 or newer is recommended.
 
 ```bash
 npm install
 npm start
 ```
 
-Otvori:
+Open:
 
 ```text
 http://localhost:3000
 ```
 
-Za test 4 igrača otvori četiri različita browser prozora ili privatna prozora.
+To test a complete match locally, open the application in four separate browser sessions.
 
-## Deploy na Railway
+## Deployment
 
-1. Napravi novi GitHub repozitorij.
-2. Uploadaj sve datoteke iz ove mape.
-3. Na Railwayu odaberi **New Project → Deploy from GitHub repo**.
-4. Odaberi repozitorij.
-5. Railway će automatski pokrenuti `npm start`.
-6. U Railway postavkama generiraj javnu domenu.
+The application can be deployed as a Node.js service on platforms that support WebSockets, such as Railway.
 
-Baza podataka nije potrebna za ovu verziju. Aktivne sobe se čuvaju u memoriji servera i nestaju pri restartu deploya.
+The server uses the port provided by the hosting environment:
 
-## Važna napomena
-Projekt je MVP. Za produkcijsku verziju preporučeni sljedeći koraci su:
-- Redis adapter za više server instanci
-- PostgreSQL za račune, statistiku i povijest partija
-- timer poteza
-- host transfer nakon disconnecta
-- automatsko čišćenje starih soba
-- testovi game enginea
+```js
+process.env.PORT || 3000
+```
+
+## Project Status
+
+The application is currently in active development.
+
+Planned improvements include persistent match storage, player profiles, turn timers, improved reconnect handling, automated tests, and additional visual polish.
