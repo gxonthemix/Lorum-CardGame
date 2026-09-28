@@ -1,5 +1,7 @@
 # Lorum Club
 
+[![Game engine tests](https://github.com/gxonthemix/Lorum-CardGame/actions/workflows/test.yml/badge.svg)](https://github.com/gxonthemix/Lorum-CardGame/actions/workflows/test.yml)
+
 A browser-based, real-time adaptation of the four-player card game Lorum. Players create a private room, join with a room code, and play a complete match from separate desktop or mobile browsers.
 
 ## Engineering highlights
